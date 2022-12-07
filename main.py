@@ -6,7 +6,7 @@ from torchvision import transforms as transforms
 import numpy as np
 
 import argparse
-
+import time
 from models import *
 from misc import progress_bar
 
@@ -109,7 +109,7 @@ class Solver(object):
         mlflow.log_metric("training time", str(runtimeend-runtimestart))
         return train_loss, train_correct / total
 
-    def test(self):
+    def test(self,epoch):
         print("test:")
         self.model.eval()
         test_loss = 0
@@ -147,7 +147,7 @@ class Solver(object):
             print("\n===> epoch: %d/200" % epoch)
             train_result = self.train()
             print(train_result)
-            test_result = self.test()
+            test_result = self.test(epoch)
             accuracy = max(accuracy, test_result[1])
             if epoch == self.epochs:
                 print("===> BEST ACC. PERFORMANCE: %.3f%%" % (accuracy * 100))
@@ -159,5 +159,5 @@ if __name__ == '__main__':
     with mlflow.start_run():
         runtimestart=time.time()
         main()
-        runtimened=time.time()
-        mlflow.log_metric("runtime".str(runtimeend-runtimestart))
+        runtimeend=time.time()
+        mlflow.log_metric("runtime",str(runtimeend-runtimestart))
