@@ -10,9 +10,10 @@ import argparse
 from models import *
 from misc import progress_bar
 
+import mlflow
+import mlflow.pytorch
 
 CLASSES = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
 
 def main():
     parser = argparse.ArgumentParser(description="cifar-10 with PyTorch")
@@ -43,12 +44,15 @@ class Solver(object):
         self.test_loader = None
 
     def load_data(self):
+        dataloadstarttime=time.time()
         train_transform = transforms.Compose([transforms.RandomHorizontalFlip(), transforms.ToTensor()])
         test_transform = transforms.Compose([transforms.ToTensor()])
         train_set = torchvision.datasets.CIFAR10(root='./data', train=True, download=True, transform=train_transform)
         self.train_loader = torch.utils.data.DataLoader(dataset=train_set, batch_size=self.train_batch_size, shuffle=True)
         test_set = torchvision.datasets.CIFAR10(root='./data', train=False, download=True, transform=test_transform)
         self.test_loader = torch.utils.data.DataLoader(dataset=test_set, batch_size=self.test_batch_size, shuffle=False)
+        dataloadendtime=time.time()
+        mlflow.log_metric("dataloadingtime",str(dataloadendtime-dataloadstarttime))
 
     def load_model(self):
         if self.cuda:
@@ -80,6 +84,7 @@ class Solver(object):
         self.criterion = nn.CrossEntropyLoss().to(self.device)
 
     def train(self):
+        runtimestart= time.time()
         print("train:")
         self.model.train()
         train_loss = 0
@@ -96,13 +101,12 @@ class Solver(object):
             train_loss += loss.item()
             prediction = torch.max(output, 1)  # second param "1" represents the dimension to be reduced
             total += target.size(0)
-
             # train_correct incremented by one if predicted right
             train_correct += np.sum(prediction[1].cpu().numpy() == target.cpu().numpy())
-
             progress_bar(batch_num, len(self.train_loader), 'Loss: %.4f | Acc: %.3f%% (%d/%d)'
                          % (train_loss / (batch_num + 1), 100. * train_correct / total, train_correct, total))
-
+        runtimeend=time.time()
+        mlflow.log_metric("training time", str(runtimeend-runtimestart))
         return train_loss, train_correct / total
 
     def test(self):
@@ -124,6 +128,7 @@ class Solver(object):
 
                 progress_bar(batch_num, len(self.test_loader), 'Loss: %.4f | Acc: %.3f%% (%d/%d)'
                              % (test_loss / (batch_num + 1), 100. * test_correct / total, test_correct, total))
+            mlflow.log_metric("test_loss",test_loss,epoch)
 
         return test_loss, test_correct / total
 
@@ -135,8 +140,9 @@ class Solver(object):
     def run(self):
         self.load_data()
         self.load_model()
-        accuracy = 0
-        for epoch in range(1, self.epochs + 1):
+        accuracy = 0 
+        #for epoch in range(1, self.epochs + 1):
+        for epoch in range(1, 4):
             self.scheduler.step(epoch)
             print("\n===> epoch: %d/200" % epoch)
             train_result = self.train()
@@ -146,7 +152,12 @@ class Solver(object):
             if epoch == self.epochs:
                 print("===> BEST ACC. PERFORMANCE: %.3f%%" % (accuracy * 100))
                 self.save()
-
-
+                
+    
 if __name__ == '__main__':
-    main()
+
+    with mlflow.start_run():
+        runtimestart=time.time()
+        main()
+        runtimened=time.time()
+        mlflow.log_metric("runtime".str(runtimeend-runtimestart))
